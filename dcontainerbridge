@@ -132,7 +132,7 @@
     if [[ "$#" != 4 ]]
     then
 		echo "The number of arguments with option $1 are not accurate."
-		echo "Please try again  or use ./containerbridge -h for more information"
+		echo "Please try again  or use ./dcontainerbridge -h for more information"
 		exit 0
     fi
 
