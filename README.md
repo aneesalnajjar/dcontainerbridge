@@ -32,8 +32,9 @@ How to use Containerbridge tool:
 		./containerbridge --help
 
 
-DEVELOPER:
-	Anees Al-Najjar,
-	Postdoctorol Research Associate,
-	Oak Ridge National Laboratory (ORNL), Oak Ridge, TN, 37830, USA
-	alnajjaram@ornl.gov
+Developer:
+
+Anees Al-Najjar,
+Postdoctorol Research Associate,
+Oak Ridge National Laboratory (ORNL), Oak Ridge, TN, 37830, USA
+alnajjaram@ornl.gov
