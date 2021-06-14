@@ -1,4 +1,5 @@
 Discription:
+
 Containerbridge is an adaptive, lightweight, and transparent tool used with docker containers to improve the network connectivity. It is utilized to attach another network interface to the running docker container. Which allows it runing multiple compute services with different IPs or can be accessed from outside docker network (via other LAN/WAN). The tool can also dettach the added interface transparently while the container is runing without any chnage of the basic docker network connectivity. 
 Containerbridge adapts the network stack of the running container and its hosting machine to add another network interface to the running container. This is achieved via creating a network bridge on the hosting machine and a virtual ethernet pair.One virtual veth is added to the container while the other is added to the bridge. The bridge will also include the network interface of the hosting machine. 
 
