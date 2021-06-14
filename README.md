@@ -7,8 +7,11 @@ Containerbridge adapts the network stack of the running container and its hostin
 
 How to use Containerbridge tool:
    1- Download it.
-   2- sudo chmod 774 containerbridge
+   
+   2- sudo chmod 774 containerbridge.
+   
    3- ./containerbridge OPTIONS [ARGs]
+   
 	   
 	   
     OPTIONS
