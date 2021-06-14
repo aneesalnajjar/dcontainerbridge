@@ -5,13 +5,11 @@ Containerbridge is an adaptive, lightweight, and transparent tool used with dock
 Containerbridge adapts the network stack of the running container and its hosting machine to add another network interface to the running container. This is achieved via creating a network bridge on the hosting machine and a virtual ethernet pair.One virtual veth is added to the container while the other is added to the bridge. The bridge will also include the network interface of the hosting machine. 
 
 
-How to use Containerbridge tool:
-
-   1- Download the tool.
-   
-   2- sudo chmod 774 containerbridge.
-   
-   3- ./containerbridge OPTIONS [ARGs]
+     How to use Containerbridge tool:
+	1- Download the tool using
+	   git clone https://github.com/aneesalnajjar/containerbridge.git
+  	2- sudo chmod 774 containerbridge.
+   	3- ./containerbridge OPTIONS [ARGs]
    
 	   
 	   
