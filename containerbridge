@@ -1,0 +1,300 @@
+#!/bin/bash
+
+# sudo chmod 774 containerbridge
+# ./containerbridge OPTION <ARGs>
+#
+# containerbridge is an adaptive, lightweight, and transparent tool used with docker containers to improve the network connectivity.
+# It is utilized to attach another network interface to the running docker container.
+# Which allows it runing multiple compute services with different IPs or can be accessed from outside docker network (via other LAN/WAN). 
+# The tool can also dettach the added interface transparently while the container is runing without any chnage of the basic docker network connectivity.    
+#
+#
+# The tool adapts the network stack of the running container and its hosting machine to add another network interface to the running container.
+# This is achieved via creating a network bridge on the hosting machine and a virtual ethernet pair.
+# One virtual veth is added to the container while the other is added to the bridge. 
+# The bridge will also include the network interface of the hosting machine. 
+#
+#
+#	Developed by:
+#	   Anees Al-Najjar,
+#	   Postdoctoral Research Associate,
+#	   Autonomous and Complex Systems Group,
+#	   Oak Ridge National Laboratory (ORNL), Oak Ridge, TN, 37831, USA
+#	   alnajjaram@ornl.gov
+#	   
+#
+#
+
+
+#############################################################################
+#############################################################################
+   function call_create_Net_Br ()
+   {
+    
+	#This function is to create a network bridge and assign it to the machine. The function is also create a veth pair to connect a docker container to the bridge to be accessble from outside docker network computing services.
+
+    # check if the number of the arguments is not stuitable to accomplish this process
+    if [[ "$#" != 5 ]]
+    then
+	echo "The number of arguments with option $1 are not accurate."
+        echo "Please try again or use ./containerbridge -h for more information"
+        exit 0
+    fi
+
+	# Create a network bridge with a format br-<host-name>
+	br_name=br-$2
+	# Figure out the network address details of the host network interface
+	vhost_ip=$(ifconfig $3 | awk '/inet / {print $2}')
+	vhost_netmask=$(ifconfig $3 | awk '/inet / {print $4}')
+	vhost_brcast=$(ifconfig $3 | awk '/inet / {print $6}')
+	vhost_dfgw=$(netstat -rn | grep -m 1 UG | awk '{print $2}')
+	
+	# Obtain the containers running on this machine
+	container_lst=$(docker ps | grep -oP '\S+$'| tail -n +2)
+
+
+	echo $'\n#################################################################'
+	echo $'           Attaching a network interface to' $4
+	echo $'               Network & containers details'
+	echo $'#################################################################\n'
+	echo "host ip: $vhost_ip"
+	echo "host netmask: $vhost_netmask"
+	echo "host broadcast: $vhost_brcast"
+	echo "host default GW address: $vhost_dfgw"
+	echo $'\nRunning containers:'
+	echo "           "$container_lst
+	echo $'\n##################################################'
+        echo $'##################################################\n'
+
+
+	# Examine if the potential container to be conncted via the bridge is already running. 
+	if [[ $container_lst != *$4* ]] 
+	then 
+		echo -e "$4 is not running. Run it via a containerization sw then re-run containerbridge script.\nExit Running"
+		exit 0
+	fi
+
+	# Obtain the network bridges on the the host and check if the potential bridge to be created is already exist on the host
+	br_lst=$( brctl show | grep -oP '^\S+\s+'| tail -n +2)
+	if [[ $br_lst == *$br_name* ]] 
+	then
+		echo -e "Bridge $br_name is exist. Cannot proceed with creating a bridge with the same name.\nExit Running" 
+	else
+		# Create a Bridge and make it up
+		echo "Create bridge $br_name"
+		brctl addbr $br_name
+		ip link set $br_name up
+		# Attach the host interface to it
+		echo "Attach interface $3"
+		brctl addif $br_name $3
+		# Delete the IP address and the default route from the host interface and attach it to the bridge interface
+		ip route del default
+		ifconfig $3 0.0.0.0
+		echo "Assign ip and default route of $vhost_ip to $br_name"
+		ifconfig $br_name $vhost_ip netmask $vhost_netmask broadcast $vhost_brcast up
+		# Add a default route via the created interface
+		ip route add default via $vhost_dfgw dev $br_name
+		# Create a veth pair, bring it up, and assign one ends to the bridge and the other to the container
+		echo "Create a veth pair on $4"
+		ip link add veth0 type veth peer name veth1
+		echo "Attach veth1 on $br_name"
+		brctl addif $br_name veth1
+		ip link set veth1 up
+		echo "Attach veth0 on $4"
+		ip link set netns $(exec docker inspect --format '{{ .State.Pid }}' $4) dev veth0
+		#read -e -p "STOP" BUF
+		nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ip link set veth0 up
+		#read -e -p "STOP" BUF
+		# Assign an IP address with the default route to the veth int attached to the container. This ip should be in the same subnet of the the host running the container.
+		echo "Delete default route on $4 container"
+                # Check if the default route exist
+                check_def_route=$(nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ip route | head -n 1)
+                if [[ $check_def_route == *"default"* ]] 
+		then 
+			nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ip route del default
+
+		fi
+		echo "Assign IP and default route to veth0"
+		nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ifconfig veth0 $5 netmask $vhost_netmask broadcast $vhost_brcast up
+		nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ip route add default via $vhost_dfgw dev veth0
+	fi
+   }
+
+
+#############################################################################
+#############################################################################
+   
+   function call_remove_Net_Br()
+   {
+	#This function is to create a network bridge and assign it to the machine. The function is also create a veth pair to connect a docker container to the bridge to be accessble from outside docker network computing services.
+
+    # check if the number of the arguments is not stuitable to accomplish this process
+    if [[ "$#" != 4 ]]
+    then
+		echo "The number of arguments with option $1 are not accurate."
+		echo "Please try again  or use ./containerbridge -h for more information"
+		exit 0
+    fi
+
+	br_name=br-$2
+    
+    # Get the network bridges on the host. Check if there is no active network bridges or bridge wanted to delete is not exist on the host
+	br_lst=$( brctl show | grep -oP '^\S+\s+'| tail -n +2)
+	if [[ -z "$br_lst"  ||  $br_lst != *$br_name* ]]
+	then
+		echo -e "There is no $br_name at the running host. \nExit running"
+	else
+		echo "The network bridge(s) on the host $br_lst"
+        # Figure out the network address details of the network bridge
+		#echo "Figure out the address details"
+		bridge_ip=$(ifconfig $br_name | awk '/inet / {print $2}')
+		bridge_netmask=$(ifconfig $br_name | awk '/inet / {print $4}')
+		bridge_brcast=$(ifconfig $br_name | awk '/inet / {print $6}')
+		bridge_dfgw=$(netstat -rn | grep -m 1 UG | awk '{print $2}')
+		# Obtain network interfaces attached on the bridge  
+		intf_lst=$(brctl show $br_name | grep -oP '(?<=\t)\S+$'| tail -n +2)
+		# Obtain network interfaces of the container
+                cont_intf_lst=$(nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ifconfig -a | sed 's/[\: \t].*//;/^\(lo\|\)$/d')
+		
+
+		echo $'\n###################################################'
+		echo $'           Detaching the network interface'
+		echo $'              Configured network details'
+		echo $'##################################################\n'
+		echo "bridge ip: $bridge_ip"
+		echo "bridge netmask: $bridge_netmask"
+		echo "bridge broadcast: $bridge_brcast"
+		echo "bridge default GW address: $bridge_dfgw"
+		echo $'Net. interfaces on' $br_name:
+		echo -e '     ' $intf_lst
+		echo $'Net. interfaces on' $2:
+		for item in $cont_intf_lst
+		do
+			echo $item $(nsenter -t $(exec docker inspect --format '{{ .State.Pid }}' $4) -n ifconfig $item | grep "inet " | awk -F'[: ]+' '{ print $3 }')
+		done
+		
+		echo $'\n##################################################'
+        	echo $'##################################################\n'
+
+		
+		
+		# Remove/detach network interfaces from the bridge 
+		for item in $intf_lst
+		do
+			# This step is to detach the host network interface from the bridge.
+			if [[ $item == $3 ]]
+			then
+				echo "Detatch the $3 from $br_name and re-attach it to the host"
+				ifconfig $item 0.0.0.0 down
+				brctl delif $br_name $item
+			else
+                # Remove the virtual interfaces attached to the bridge 
+				ip link set $item down
+				echo "Remove interface $item"
+				sudo ip link delete $item
+			fi
+		done
+		
+		# After removing the network interfaces from the bridge, it is ready for deleting
+		echo "Remove bridge $br_name"
+		ip link set $br_name down
+		brctl delbr $br_name
+
+		# Assign the IP address of the deleted bridge to the detached host interface. This step will maintain the connectivity to the host with its original IP address before attached to the bridge. 		
+		echo "Re-assign the bridge address to the $3 interface"
+		ifconfig $3 $bridge_ip netmask $bridge_netmask broadcast $bridge_brcast up
+		ip route add default via $bridge_dfgw dev $3
+    fi
+   }
+
+#############################################################################
+#############################################################################
+   
+   function call_help()
+   {
+	#This function illustrates how the tool is working with details about its functionality. 
+	
+	echo "NAME"
+	echo "      ${0##*/} - Integrate a network interface to a running docker container."
+	echo "SYNOPSIS"
+	echo "      ${0##*/} OPTIONS [ARGs]"
+	echo "DESCRIPTION"
+	echo "      ${0##*/} v$version is a tool developed at Oak Ridge National Laboratory (ORNL) for improving docker containrs' network connection. It is adaptive, lightweight and detachable that can be removed without any chnage on the basic docker conainer connectivity."
+	echo "The tool adapts the network stack of the running docker container and its hosting machine to add another network interface to the container."
+#	echo "This is achieved by creating a network bridge on the machine, virtual ethernet pair and add one end to the container and the other to the bridge. The bridge also includes the network interface of the hosting machine to enalble the connectivity with services over LAN/WAN."
+	echo "${0##*/} can also used to remove the attached network from the container. It does not affect the basic container connectivity with the docker bridge."
+	echo "	"
+	echo "	"
+	echo "	"
+	echo "OPTIONS"
+	echo "      --create, -c	Create a network interface attached to the host."
+	echo "			ARGs"
+	echo -e '			<host-name> <host-intf.> <container-name> <attached intf. IP>\n'
+	echo "      --remove, -r	Remove the attached network interface form the contianer."
+	echo "			ARGs"
+	echo -e '			<host-name> <host intf.> <container-name> \n'
+	echo -e '      --version, -v	The current version of '${0##*/}'\n'
+	echo -e '      --help, -h	'${0##*/}' manual page\n'
+	echo ""
+	echo "EXAMPLES"
+	echo "		./${0##*/} --create olcfcomp1 olcfcomp1-eth0 imars3d 172.16.0.10"
+	echo "		./${0##*/} --remove olcfcomp1 olcfcomp1-eth0 imars3d"
+	echo "		./${0##*/} --version "
+	echo -e '		'./${0##*/}' --help\n'
+	echo "DEVELOPER"
+	echo "	Anees Al-Najjar,"
+	echo "	Research Associate,"
+	echo "	Autonomous and Complex Systems Group,"
+	echo "	Oak Ridge National Laboratory (ORNL), Oak Ridge, TN, 37831, USA"
+	echo "	alnajjaram@ornl.gov"
+   }
+
+#############################################################################
+#############################################################################
+   
+   function call_valid_options ()
+	{ 
+	#The function explains the valid options to running the tool. 
+	
+	echo "${0##*/} v$version"
+	echo "${0##*/} OPTION [ARGs]"
+	echo "Valid options are [--create|-c], [--remove|-r], [--version|-v] or [--help|-h]"
+	echo "Please Try again"
+	exit 0
+	}
+
+######################################################################################
+###############################   Main Function  #####################################
+######################################################################################
+
+# What is the tool version?
+version="1.0"
+
+# Check if the tool is called with no parameters.
+if [[ "$#" == 0 ]]
+then	
+	call_valid_options $@ $version
+fi
+
+# Check the tool option type
+case "$1" in
+   "--remove" | "-r" | "--REMOVE" | "-R" )
+   call_remove_Net_Br $@
+   ;;
+   "--create" | "-c" | "--CREATE" | "-C" )
+   call_create_Net_Br $@
+   ;;
+   "--help" | "-h" | "--HELP" | "-H" )
+   call_help $@ $version
+   ;;
+   "--version" | "-v" | "--VERSION" | "-V" )
+   echo "${0##*/} version $version"
+   ;;
+   *)
+   call_valid_options $@ $version
+   ;;
+esac
+
+
+
+
