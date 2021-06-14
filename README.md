@@ -8,6 +8,7 @@ Dcontainerbridge adapts the network stack of the running container and its hosti
 Download and use Dcontainerbridge tool:
 
    	$ git clone https://github.com/aneesalnajjar/dcontainerbridge.git
+	$ cd dcontainerbridge
    	$ sudo chmod 774 dcontainerbridge.
    	$ ./dcontainerbridge OPTIONS [ARGs]
    
