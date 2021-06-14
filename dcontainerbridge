@@ -70,7 +70,7 @@
 	# Examine if the potential container to be conncted via the bridge is already running. 
 	if [[ $container_lst != *$4* ]] 
 	then 
-		echo -e "$4 is not running. Run it via a containerization sw then re-run containerbridge script.\nExit Running"
+		echo -e "$4 is not running. Run it via a containerization sw then re-run dcontainerbridge script.\nExit Running"
 		exit 0
 	fi
 
