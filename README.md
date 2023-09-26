@@ -1,4 +1,4 @@
-Description:
+## Description:
 
 Docker container bridge (dcontainerbridge) is an adaptive, lightweight, and transparent tool used with docker containers to improve network connectivity. It is utilized to attach another network interface to the running docker container. Which allows it to run multiple compute services with different IPs or can be accessed from outside docker network (via other LAN/WAN). The tool can also detach the added interface transparently while the container is running without any change of the basic docker network connectivity. 
 
@@ -36,10 +36,22 @@ Download and use dcontainerbridge tool:
 		./dcontainerbridge --help
 
 
-Developer:
+### Developer:
 
 Anees Al-Najjar,
 
 Oak Ridge National Laboratory (ORNL), Oak Ridge, TN, 37830, USA
 
 alnajjaram@ornl.gov
+
+**To site this tool, please refer to the following reference**
+
+@INPROCEEDINGS{9524993,
+  author={Al-Najjar, Anees and Rao, Nageswara S. V. and Imam, Neena and Naughton, Thomas and Hitefield, Seth and Sorrillo, Lawrence and Kohl, James and Elwasif, Wael and Bilheux, Jean-Christophe and Bilheux, Hassina and Boehm, Swen and Kincl, Jason},
+  booktitle={2021 IEEE 46th Conference on Local Computer Networks (LCN)}, 
+  title={Virtual Framework for Development and Testing of Federation Software Stack}, 
+  year={2021},
+  volume={},
+  number={},
+  pages={323-326},
+  doi={10.1109/LCN52139.2021.9524993}}
